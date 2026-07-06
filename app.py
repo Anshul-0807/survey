@@ -52,17 +52,14 @@ def running_on_streamlit_cloud() -> bool:
     )
 
 
-def chromium_executable_path() -> str | None:
-    if not running_on_streamlit_cloud():
-        return None
-
+def system_chromium_executable_path() -> str | None:
     for path in ("/usr/bin/chromium", "/usr/bin/chromium-browser"):
         if Path(path).exists():
             return path
     return None
 
 
-def get_browser_launch_options() -> dict:
+def get_browser_launch_options(executable_path: str | None = None) -> dict:
     args = [
         "--no-sandbox",
         "--disable-setuid-sandbox",
@@ -87,12 +84,33 @@ def get_browser_launch_options() -> dict:
         "args": (args if HEADLESS else []),
     }
 
-    executable_path = chromium_executable_path()
     if executable_path:
         options["executable_path"] = executable_path
         print(f"  Using system Chromium: {executable_path}")
 
     return options
+
+
+def launch_chromium(browser_type):
+    errors = []
+    launch_attempts = [("Playwright Chromium", get_browser_launch_options())]
+
+    if running_on_streamlit_cloud():
+        executable_path = system_chromium_executable_path()
+        if executable_path:
+            launch_attempts.append(
+                ("system Chromium", get_browser_launch_options(executable_path))
+            )
+
+    for label, options in launch_attempts:
+        try:
+            print(f"  Launch attempt: {label}")
+            return browser_type.launch(**options)
+        except Exception as e:
+            errors.append(f"{label}: {e}")
+            print(f"  Browser launch failed with {label}: {e}")
+
+    raise RuntimeError("Chromium launch failed. " + " | ".join(errors))
 
 
 # ═══════════════════════════════════════════════════════
@@ -476,12 +494,7 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
 
     with sync_playwright() as p:
         print("\n► Browser launch ho raha hai...")
-        base_launch_options = get_browser_launch_options()
-        try:
-            browser = p.chromium.launch(**base_launch_options)
-        except Exception as e:
-            print(f"  ⚠ Browser launch failed: {e}")
-            raise
+        browser = launch_chromium(p.chromium)
         context = browser.new_context(viewport={"width": 1366, "height": 768})
         page = context.new_page()
 

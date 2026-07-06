@@ -9,9 +9,6 @@ import streamlit as st
 @st.cache_resource
 def ensure_playwright_browsers():
     """Install Chromium for Playwright once per container instance."""
-    if Path("/usr/bin/chromium").exists() or Path("/usr/bin/chromium-browser").exists():
-        return
-
     try:
         subprocess.run(
             [sys.executable, "-m", "playwright", "install", "chromium"],
@@ -75,12 +72,17 @@ def main():
             screenshot_path.unlink()
 
         with st.spinner("Automation running. please wait..."):
-            lat, lon = khasra_to_latlong(
-                district=district,
-                tehsil=tehsil,
-                village=village,
-                khasra_no=khasra_no.strip() or None,
-            )
+            try:
+                lat, lon = khasra_to_latlong(
+                    district=district,
+                    tehsil=tehsil,
+                    village=village,
+                    khasra_no=khasra_no.strip() or None,
+                )
+            except Exception as e:
+                st.error("Automation failed before coordinates could be found.")
+                st.code(str(e))
+                st.stop()
 
         if lat and lon:
             st.success("Coordinates found")

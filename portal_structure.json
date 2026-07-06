@@ -1,0 +1,93 @@
+{
+  "selects": [],
+  "ngSelects": [],
+  "inputs": [
+    {
+      "id": "mat-input-0",
+      "name": "",
+      "type": "text",
+      "placeholder": "ULPIN दर्ज करें",
+      "class": "mat-mdc-input-element mat-mdc-tooltip-trigger mat-mdc-form-f"
+    },
+    {
+      "id": "mat-radio-2-input",
+      "name": "mat-radio-group-0",
+      "type": "radio",
+      "placeholder": "",
+      "class": "mdc-radio__native-control"
+    },
+    {
+      "id": "mat-radio-3-input",
+      "name": "mat-radio-group-0",
+      "type": "radio",
+      "placeholder": "",
+      "class": "mdc-radio__native-control"
+    },
+    {
+      "id": "mat-input-1",
+      "name": "",
+      "type": "text",
+      "placeholder": "कैप्चा दर्ज करें",
+      "class": "mat-mdc-input-element mat-mdc-tooltip-trigger mat-mdc-form-f"
+    },
+    {
+      "id": "mat-mdc-checkbox-1-input",
+      "name": "",
+      "type": "checkbox",
+      "placeholder": "",
+      "class": "mdc-checkbox__native-control mdc-checkbox--selected"
+    },
+    {
+      "id": "mat-mdc-checkbox-2-input",
+      "name": "",
+      "type": "checkbox",
+      "placeholder": "",
+      "class": "mdc-checkbox__native-control mdc-checkbox--selected"
+    },
+    {
+      "id": "mat-mdc-checkbox-3-input",
+      "name": "",
+      "type": "checkbox",
+      "placeholder": "",
+      "class": "mdc-checkbox__native-control mdc-checkbox--selected"
+    },
+    {
+      "id": "mat-radio-5-input",
+      "name": "mat-radio-group-3",
+      "type": "radio",
+      "placeholder": "",
+      "class": "mdc-radio__native-control"
+    },
+    {
+      "id": "scale",
+      "name": "",
+      "type": "text",
+      "placeholder": "1 : 5000",
+      "class": "d-w-100 d-h-45"
+    }
+  ],
+  "dropdowns": [
+    {
+      "tag": "MAT-SELECT",
+      "role": "combobox",
+      "id": "mat-select-0",
+      "class": "mat-mdc-select fr-0-875 ng-tns-c3393473648-14 ng-tns-c120507",
+      "text": ""
+    },
+    {
+      "tag": "MAT-SELECT",
+      "role": "combobox",
+      "id": "mat-select-2",
+      "class": "mat-mdc-select fr-0-875 ng-tns-c3393473648-16 ng-tns-c120507",
+      "text": ""
+    },
+    {
+      "tag": "MAT-SELECT",
+      "role": "combobox",
+      "id": "mat-select-4",
+      "class": "mat-mdc-select fr-0-875 ng-tns-c3393473648-18 ng-tns-c120507",
+      "text": ""
+    }
+  ],
+  "allText": []
+}

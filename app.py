@@ -426,6 +426,7 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
         print("\n► Browser launch ho raha hai...")
         launch_options = {
             "headless": True,
+            "chromium_sandbox": False,
             "slow_mo": SLOW_MO,
             "args": [
                 "--no-sandbox",
@@ -433,6 +434,9 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
                 "--disable-dev-shm-usage",
                 "--disable-gpu",
                 "--no-zygote",
+                "--single-process",
+                "--disable-software-rasterizer",
+                "--disable-extensions",
             ],
         }
         if os.path.exists("/usr/bin/chromium"):

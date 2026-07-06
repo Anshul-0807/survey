@@ -26,6 +26,7 @@ import time
 import re
 import os
 import argparse
+from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -41,6 +42,57 @@ BASE_URL          = "https://webgis2.mpbhulekh.gov.in"
 MAX_CAPTCHA_RETRY = 5
 AUTO_RETRY         = 15
 MAP_SCREENSHOT     = "map_polygon_screenshot.png"
+
+
+def running_on_streamlit_cloud() -> bool:
+    return (
+        os.getenv("STREAMLIT_SHARING_MODE") is not None
+        or os.getenv("STREAMLIT_SERVER_PORT") is not None
+        or Path("/mount/src").exists()
+    )
+
+
+def chromium_executable_path() -> str | None:
+    if not running_on_streamlit_cloud():
+        return None
+
+    for path in ("/usr/bin/chromium", "/usr/bin/chromium-browser"):
+        if Path(path).exists():
+            return path
+    return None
+
+
+def get_browser_launch_options() -> dict:
+    args = [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--no-zygote",
+        "--disable-software-rasterizer",
+        "--disable-extensions",
+    ]
+    if running_on_streamlit_cloud():
+        args.extend([
+            "--disable-background-networking",
+            "--disable-background-timer-throttling",
+            "--disable-renderer-backgrounding",
+            "--disable-features=Translate,BackForwardCache",
+        ])
+
+    options = {
+        "headless": HEADLESS,
+        "chromium_sandbox": False,
+        "slow_mo": SLOW_MO,
+        "args": (args if HEADLESS else []),
+    }
+
+    executable_path = chromium_executable_path()
+    if executable_path:
+        options["executable_path"] = executable_path
+        print(f"  Using system Chromium: {executable_path}")
+
+    return options
 
 
 # ═══════════════════════════════════════════════════════
@@ -424,21 +476,7 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
 
     with sync_playwright() as p:
         print("\n► Browser launch ho raha hai...")
-        base_launch_options = {
-            "headless": HEADLESS,
-            "chromium_sandbox": False,
-            "slow_mo": SLOW_MO,
-            "args": ([
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu",
-                "--no-zygote",
-                "--single-process",
-                "--disable-software-rasterizer",
-                "--disable-extensions",
-            ] if HEADLESS else []),
-        }
+        base_launch_options = get_browser_launch_options()
         try:
             browser = p.chromium.launch(**base_launch_options)
         except Exception as e:

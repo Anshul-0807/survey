@@ -9,6 +9,9 @@ import streamlit as st
 @st.cache_resource
 def ensure_playwright_browsers():
     """Install Chromium for Playwright once per container instance."""
+    if Path("/usr/bin/chromium").exists() or Path("/usr/bin/chromium-browser").exists():
+        return
+
     try:
         subprocess.run(
             [sys.executable, "-m", "playwright", "install", "chromium"],

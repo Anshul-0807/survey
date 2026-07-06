@@ -424,7 +424,7 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
 
     with sync_playwright() as p:
         print("\n► Browser launch ho raha hai...")
-        launch_options = {
+        base_launch_options = {
             "headless": True,
             "chromium_sandbox": False,
             "slow_mo": SLOW_MO,
@@ -439,12 +439,25 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
                 "--disable-extensions",
             ],
         }
+        launch_attempts = []
         if os.path.exists("/usr/bin/chromium"):
-            launch_options["executable_path"] = "/usr/bin/chromium"
+            launch_attempts.append({**base_launch_options, "executable_path": "/usr/bin/chromium"})
         elif os.path.exists("/usr/bin/chromium-browser"):
-            launch_options["executable_path"] = "/usr/bin/chromium-browser"
+            launch_attempts.append({**base_launch_options, "executable_path": "/usr/bin/chromium-browser"})
+        launch_attempts.append(base_launch_options)
 
-        browser = p.chromium.launch(**launch_options)
+        browser = None
+        last_launch_error = None
+        for idx, launch_options in enumerate(launch_attempts, start=1):
+            try:
+                browser = p.chromium.launch(**launch_options)
+                break
+            except Exception as e:
+                last_launch_error = e
+                print(f"  ⚠ Browser launch attempt {idx} failed: {e}")
+
+        if not browser:
+            raise last_launch_error
         context = browser.new_context(viewport={"width": 1366, "height": 768})
         page = context.new_page()
 

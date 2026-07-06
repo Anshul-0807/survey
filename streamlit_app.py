@@ -1,7 +1,27 @@
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import streamlit as st
+
+
+@st.cache_resource
+def ensure_playwright_browsers():
+    """Install Chromium for Playwright once per container instance."""
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "playwright", "install", "chromium"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as e:
+        st.error(f"Playwright browser install failed: {e.stderr}")
+        st.stop()
+
+
+ensure_playwright_browsers()
 
 from app import MAP_SCREENSHOT, khasra_to_latlong
 

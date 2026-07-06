@@ -14,7 +14,7 @@ ENV/
 .env
 .env.*
 !.env.example
-
+.png
 # Build and packaging
 build/
 dist/

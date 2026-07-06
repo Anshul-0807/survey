@@ -34,7 +34,7 @@ load_dotenv()
 # ⚙️  CONFIG
 # ─────────────────────────────────────────────────────────
 SAMBANOVA_API_KEY = os.getenv("SAMBANOVA_API_KEY")
-HEADLESS          = False
+HEADLESS          = os.getenv("HEADLESS", "true").strip().lower() in ("1", "true", "yes", "on")
 SLOW_MO           = 400
 TIMEOUT           = 45000
 BASE_URL          = "https://webgis2.mpbhulekh.gov.in"
@@ -425,10 +425,10 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
     with sync_playwright() as p:
         print("\n► Browser launch ho raha hai...")
         base_launch_options = {
-            "headless": True,
+            "headless": HEADLESS,
             "chromium_sandbox": False,
             "slow_mo": SLOW_MO,
-            "args": [
+            "args": ([
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
                 "--disable-dev-shm-usage",
@@ -437,27 +437,13 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
                 "--single-process",
                 "--disable-software-rasterizer",
                 "--disable-extensions",
-            ],
+            ] if HEADLESS else []),
         }
-        launch_attempts = []
-        if os.path.exists("/usr/bin/chromium"):
-            launch_attempts.append({**base_launch_options, "executable_path": "/usr/bin/chromium"})
-        elif os.path.exists("/usr/bin/chromium-browser"):
-            launch_attempts.append({**base_launch_options, "executable_path": "/usr/bin/chromium-browser"})
-        launch_attempts.append(base_launch_options)
-
-        browser = None
-        last_launch_error = None
-        for idx, launch_options in enumerate(launch_attempts, start=1):
-            try:
-                browser = p.chromium.launch(**launch_options)
-                break
-            except Exception as e:
-                last_launch_error = e
-                print(f"  ⚠ Browser launch attempt {idx} failed: {e}")
-
-        if not browser:
-            raise last_launch_error
+        try:
+            browser = p.chromium.launch(**base_launch_options)
+        except Exception as e:
+            print(f"  ⚠ Browser launch failed: {e}")
+            raise
         context = browser.new_context(viewport={"width": 1366, "height": 768})
         page = context.new_page()
 

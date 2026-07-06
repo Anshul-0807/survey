@@ -424,7 +424,17 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
 
     with sync_playwright() as p:
         print("\n► Browser launch ho raha hai...")
-        launch_options = {"headless": HEADLESS, "slow_mo": SLOW_MO}
+        launch_options = {
+            "headless": True,
+            "slow_mo": SLOW_MO,
+            "args": [
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--no-zygote",
+            ],
+        }
         if os.path.exists("/usr/bin/chromium"):
             launch_options["executable_path"] = "/usr/bin/chromium"
         elif os.path.exists("/usr/bin/chromium-browser"):

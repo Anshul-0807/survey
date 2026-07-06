@@ -424,13 +424,13 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
 
     with sync_playwright() as p:
         print("\n► Browser launch ho raha hai...")
-    launch_options = {"headless": HEADLESS, "slow_mo": SLOW_MO}
-    if os.path.exists("/usr/bin/chromium"):
-        launch_options["executable_path"] = "/usr/bin/chromium"
-    elif os.path.exists("/usr/bin/chromium-browser"):
-        launch_options["executable_path"] = "/usr/bin/chromium-browser"
+        launch_options = {"headless": HEADLESS, "slow_mo": SLOW_MO}
+        if os.path.exists("/usr/bin/chromium"):
+            launch_options["executable_path"] = "/usr/bin/chromium"
+        elif os.path.exists("/usr/bin/chromium-browser"):
+            launch_options["executable_path"] = "/usr/bin/chromium-browser"
 
-    browser = p.chromium.launch(**launch_options)
+        browser = p.chromium.launch(**launch_options)
         context = browser.new_context(viewport={"width": 1366, "height": 768})
         page = context.new_page()
 

@@ -485,6 +485,12 @@ def solve_and_fill_captcha(page, img_path="captcha_temp.png") -> bool:
 # ═══════════════════════════════════════════════════════
 
 def khasra_to_latlong(district, tehsil, village, khasra_no=None):
+    if not SAMBANOVA_API_KEY:
+        raise RuntimeError(
+            "SAMBANOVA_API_KEY is not set. Add it in Streamlit Cloud: "
+            "Manage app -> Settings -> Secrets."
+        )
+
     print("\n" + "═"*55)
     location_text = f"{district} → {tehsil} → {village}"
     if khasra_no:

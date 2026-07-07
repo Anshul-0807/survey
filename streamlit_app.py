@@ -1,6 +1,8 @@
 import json
 import subprocess
 import sys
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 
 import streamlit as st
@@ -72,16 +74,22 @@ def main():
             screenshot_path.unlink()
 
         with st.spinner("Automation running. please wait..."):
+            automation_log = StringIO()
             try:
-                lat, lon = khasra_to_latlong(
-                    district=district,
-                    tehsil=tehsil,
-                    village=village,
-                    khasra_no=khasra_no.strip() or None,
-                )
+                with redirect_stdout(automation_log):
+                    lat, lon = khasra_to_latlong(
+                        district=district,
+                        tehsil=tehsil,
+                        village=village,
+                        khasra_no=khasra_no.strip() or None,
+                    )
             except Exception as e:
                 st.error("Automation failed before coordinates could be found.")
                 st.code(str(e))
+                log_text = automation_log.getvalue()
+                if log_text:
+                    with st.expander("Automation log"):
+                        st.code(log_text)
                 st.stop()
 
         if lat and lon:
@@ -95,6 +103,10 @@ def main():
                 "Coordinates not found. This can happen if the portal's dropdown text "
                 "doesn't exactly match the selected value, or the captcha/view-map step failed."
             )
+            log_text = automation_log.getvalue()
+            if log_text:
+                with st.expander("Automation log"):
+                    st.code(log_text)
 
         if screenshot_path.exists():
             st.subheader("Map screenshot")

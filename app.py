@@ -86,7 +86,6 @@ def get_browser_launch_options(executable_path: str | None = None) -> dict:
 
     if executable_path:
         options["executable_path"] = executable_path
-        print(f"  Using system Chromium: {executable_path}")
 
     return options
 
@@ -105,12 +104,38 @@ def launch_chromium(browser_type):
     for label, options in launch_attempts:
         try:
             print(f"  Launch attempt: {label}")
+            if options.get("executable_path"):
+                print(f"  Using executable: {options['executable_path']}")
             return browser_type.launch(**options)
         except Exception as e:
             errors.append(f"{label}: {e}")
             print(f"  Browser launch failed with {label}: {e}")
 
     raise RuntimeError("Chromium launch failed. " + " | ".join(errors))
+
+
+def open_portal(page) -> bool:
+    if running_on_streamlit_cloud():
+        wait_modes = ("domcontentloaded", "load", "commit")
+        timeout = 90000
+    else:
+        wait_modes = ("networkidle", "domcontentloaded")
+        timeout = TIMEOUT
+
+    last_error = None
+    for wait_until in wait_modes:
+        try:
+            page.goto(BASE_URL, wait_until=wait_until, timeout=timeout)
+            page.wait_for_selector("body", timeout=15000)
+            print(f"  ✓ Loaded with wait_until={wait_until}: {page.url}")
+            time.sleep(5 if running_on_streamlit_cloud() else 3)
+            return True
+        except Exception as e:
+            last_error = e
+            print(f"  ⚠ Load attempt failed with wait_until={wait_until}: {e}")
+
+    print(f"  ✗ Portal load failed: {last_error}")
+    return False
 
 
 # ═══════════════════════════════════════════════════════
@@ -516,12 +541,10 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
 
         # ── Step 1: Portal open ───────────────────────────────
         print("\n[1/7] Portal khul raha hai...")
-        try:
-            page.goto(BASE_URL, wait_until="networkidle", timeout=TIMEOUT)
-            print(f"  ✓ Loaded: {page.url}")
-        except Exception as e:
-            print(f"  ⚠ Warning: {e}")
-        time.sleep(3)
+        if not open_portal(page):
+            save_map_screenshot(page)
+            browser.close()
+            return None, None
 
         # ── Step 2: भू-भाग नक्शा click ───────────────────────
         print("\n[2/7] 'भू-भाग नक्शा' click kar raha hai...")
@@ -530,6 +553,7 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
             lambda: click_visible_text(page, ["भू-भाग नक्शा", "Land Parcel Map", "भू नक्शा", "Parcel"]),
         )
         if not found:
+            save_map_screenshot(page)
             browser.close()
             return None, None
 

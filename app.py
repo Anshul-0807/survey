@@ -506,6 +506,76 @@ def solve_and_fill_captcha(page, img_path="captcha_temp.png") -> bool:
 
 
 # ═══════════════════════════════════════════════════════
+# 📄 KHASRA DETAILS (Owner / Area / Parcel ID) EXTRACTOR
+# ═══════════════════════════════════════════════════════
+
+def parse_captured_parcel_details(captured: dict) -> dict:
+    """
+    Portal ka `/tcgis/v1/parcel/details/search` API seedha structured JSON
+    deta hai (owner name, parcel id, area/extent, ownership type, etc.) —
+    isliye ab DOM scrape karne ki zaroorat nahi. Yeh function us captured
+    response ko (network listener se) normalize karke standard dict me
+    convert karta hai.
+
+    Expected input shape (ek "ownerDetails[0]" item):
+        {
+          "parcel_no": "68/2", "parcel_id": "1081171361", "parcel_type": "S",
+          "extent": "1.2320", "total_extent": "1.2320",
+          "owner_names": [
+            {"name_en": "...", "gender_en": "...", "owner_share": "1",
+             "rel_name_en": "...", "relation_en": "Father",
+             "ownership_type_en": "Bhumiswami", ...}
+          ]
+        }
+    """
+    details = {
+        "owner_name": None,
+        "owner_relation": None,   # e.g. "Father: गनपत सिंह"
+        "ownership_type": None,   # e.g. "Bhumiswami / भूमि स्वामी"
+        "owner_share": None,
+        "area": None,
+        "parcel_id": None,
+        "parcel_no": None,
+        "khata_no": None,
+        "raw_pairs": {},
+    }
+    if not captured:
+        return details
+
+    details["raw_pairs"] = captured
+    details["parcel_id"] = captured.get("parcel_id")
+    details["parcel_no"] = captured.get("parcel_no")
+    if captured.get("extent"):
+        details["area"] = f"{captured['extent']} Hectare"
+
+    owners = captured.get("owner_names") or []
+    if owners:
+        o = owners[0]  # primary owner (multiple co-owners shown via raw_pairs)
+        details["owner_name"] = o.get("name_en") or o.get("name_ll")
+        rel = o.get("relation_en") or o.get("relation_ll")
+        rel_name = o.get("rel_name_en") or o.get("rel_name_ll")
+        if rel and rel_name:
+            details["owner_relation"] = f"{rel}: {rel_name}"
+        own_en = o.get("ownership_type_en")
+        own_ll = o.get("ownership_type_ll")
+        if own_en or own_ll:
+            details["ownership_type"] = " / ".join(filter(None, [own_en, own_ll]))
+        details["owner_share"] = o.get("owner_share")
+        if len(owners) > 1:
+            details["owner_name"] += f"  (+{len(owners) - 1} more co-owner(s), see raw data)"
+
+    if any(details[k] for k in ("owner_name", "area", "parcel_id")):
+        print("  ✓ Khasra details mile (direct API se):")
+        for k in ("owner_name", "owner_relation", "ownership_type", "area", "parcel_id"):
+            if details[k]:
+                print(f"    {k}: {details[k]}")
+    else:
+        print("  ⚠ Khasra details capture nahi ho paye — search API response is intercept nahi hua.")
+
+    return details
+
+
+# ═══════════════════════════════════════════════════════
 # 🚀 MAIN AUTOMATION
 # ═══════════════════════════════════════════════════════
 
@@ -529,14 +599,45 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
         context = browser.new_context(viewport={"width": 1366, "height": 768})
         page = context.new_page()
 
-        # Tile tracker
+        # Tile tracker (fallback coordinate method)
         latest_tile = {}
+        # Direct API captures — much more reliable than tile-math / DOM scraping
+        captured_parcel_details = {}
+        captured_bbox = {}
+
         def on_response(resp):
-            m = re.search(r'/(\d+)/(\d+)/(\d+)\.png', resp.url)
+            url = resp.url
+            m = re.search(r'/(\d+)/(\d+)/(\d+)\.png', url)
             if m:
                 z = int(m.group(1))
                 if 15 <= z <= 20:
                     latest_tile.update(z=z, x=int(m.group(2)), y=int(m.group(3)))
+                return
+
+            if "/parcel/details/search" in url:
+                try:
+                    body = resp.json()
+                    if body.get("success"):
+                        owners = (
+                            body.get("data", {})
+                            .get("ownerDetails", [])
+                        )
+                        if owners:
+                            captured_parcel_details.update(owners[0])
+                except Exception as e:
+                    print(f"  ⚠ parcel/details/search parse error: {e}")
+                return
+
+            if re.search(r'/bbox(\?|$|/)', url) or url.rstrip("/").endswith("bbox"):
+                try:
+                    body = resp.json()
+                    if body.get("success") and body.get("data"):
+                        box = body["data"][0] if isinstance(body["data"], list) else body["data"]
+                        if all(k in box for k in ("minx", "miny", "maxx", "maxy")):
+                            captured_bbox.update(box)
+                except Exception as e:
+                    print(f"  ⚠ bbox parse error: {e}")
+
         page.on("response", on_response)
 
         # ── Step 1: Portal open ───────────────────────────────
@@ -544,7 +645,7 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
         if not open_portal(page):
             save_map_screenshot(page)
             browser.close()
-            return None, None
+            return None, None, None
 
         # ── Step 2: भू-भाग नक्शा click ───────────────────────
         print("\n[2/7] 'भू-भाग नक्शा' click kar raha hai...")
@@ -555,7 +656,7 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
         if not found:
             save_map_screenshot(page)
             browser.close()
-            return None, None
+            return None, None, None
 
         # ── Step 3: Popup ─────────────────────────────────────
         print("\n[3/7] Popup check kar raha hai...")
@@ -573,7 +674,7 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
         )
         if not gram_clicked:
             browser.close()
-            return None, None
+            return None, None, None
         time.sleep(1)
 
         # ── Step 4: District select (mat-select-0) ────────────
@@ -585,7 +686,7 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
             for o in opts[:10]:
                 print(f"    - {o}")
             browser.close()
-            return None, None
+            return None, None, None
         time.sleep(1)
 
         # ── Step 5: Tehsil select (mat-select-2) ─────────────
@@ -597,7 +698,7 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
             for o in opts[:10]:
                 print(f"    - {o}")
             browser.close()
-            return None, None
+            return None, None, None
         time.sleep(1)
 
         # ── Step 6: Village select (mat-select-4) ────────────
@@ -609,7 +710,7 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
             for o in opts[:15]:
                 print(f"    - {o}")
             browser.close()
-            return None, None
+            return None, None, None
         time.sleep(1)
 
         # ── Step 7: Survey No radio ───────────────────────────
@@ -662,7 +763,7 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
         if not captcha_solved:
             print("  ✗ View Map captcha/button automation fail hua")
             browser.close()
-            return None, None
+            return None, None, None
 
         time.sleep(3)
 
@@ -678,7 +779,7 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
             filled = run_required_step("Khasra fill", lambda: fill_khasra_number(page, khasra_no))
             if not filled:
                 browser.close()
-                return None, None
+                return None, None, None
 
             # Search captcha
             print("  Search captcha solve kar raha hai...")
@@ -713,15 +814,30 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
 
         time.sleep(3)
 
+        # ── Khasra details extract (owner / area / parcel id) ─
+        khasra_details = None
+        if khasra_no:
+            print("\n  Khasra details (owner/area/parcel id) — captured API response se parse kar raha hai...")
+            khasra_details = parse_captured_parcel_details(captured_parcel_details)
+
         # ── Coordinates extract ───────────────────────────────
         lat, lon = None, None
-        if latest_tile.get("z"):
+        if captured_bbox:
+            minx, miny = captured_bbox["minx"], captured_bbox["miny"]
+            maxx, maxy = captured_bbox["maxx"], captured_bbox["maxy"]
+            lat, lon = (miny + maxy) / 2, (minx + maxx) / 2
+            if not is_mp_coords(lat, lon):
+                lat, lon = None, None
+            else:
+                print(f"\n  ✓ Coordinates (bbox center se): {lat:.6f}, {lon:.6f}")
+
+        if not lat and latest_tile.get("z"):
             z, x, y = latest_tile["z"], latest_tile["x"], latest_tile["y"]
             lat, lon = tile_to_latlng(z, x, y)
             if not is_mp_coords(lat, lon):
                 lat, lon = None, None
             else:
-                print(f"\n  ✓ Coordinates: {lat:.6f}, {lon:.6f}")
+                print(f"\n  ✓ Coordinates (tile fallback se): {lat:.6f}, {lon:.6f}")
 
         if not lat:
             print("  ✗ Coordinates auto-extract nahi ho paye")
@@ -733,7 +849,7 @@ def khasra_to_latlong(district, tehsil, village, khasra_no=None):
             except Exception: pass
 
         browser.close()
-        return lat, lon
+        return lat, lon, khasra_details
 
 
 # ═══════════════════════════════════════════════════════
@@ -752,7 +868,7 @@ def main():
 ╔══════════════════════════════════════════════╗
 ║   🗺️  Khasra → Lat/Long Finder              ║
 ║   MP Bhulekh WebGIS 2.0                     ║
-║   Powered by SambaNova Llama-4 Vision       ║
+║   Powered by SambaNova gemma-4
 ╚══════════════════════════════════════════════╝
 """)
     district  = (args.district or input("  District  (e.g. Narsinghpur) : ")).strip()
@@ -760,7 +876,7 @@ def main():
     village   = (args.village or input("  Village   (e.g. Deguwan)     : ")).strip()
     khasra_no = (args.khasra or input("  Khasra No (optional, Enter to skip): ")).strip()
 
-    lat, lon = khasra_to_latlong(district, tehsil, village, khasra_no)
+    lat, lon, khasra_details = khasra_to_latlong(district, tehsil, village, khasra_no)
 
     print("\n" + "═"*55)
     if lat and lon:
@@ -775,6 +891,19 @@ def main():
         print(f"  https://maps.google.com/?q={lat},{lon}")
     else:
         print("  ❌  Coordinates nahi mile")
+
+    if khasra_details:
+        print("\n  📄  KHASRA DETAILS")
+        print("─"*55)
+        print(f"  Owner       : {khasra_details.get('owner_name') or 'Nahi mila'}")
+        if khasra_details.get('owner_relation'):
+            print(f"  Relation    : {khasra_details.get('owner_relation')}")
+        if khasra_details.get('ownership_type'):
+            print(f"  Ownership   : {khasra_details.get('ownership_type')}")
+        print(f"  Area/Size   : {khasra_details.get('area') or 'Nahi mila'}")
+        print(f"  Parcel ID   : {khasra_details.get('parcel_id') or 'Nahi mila'}")
+        if khasra_details.get('owner_share'):
+            print(f"  Owner Share : {khasra_details.get('owner_share')}")
     print("═"*55)
 
 

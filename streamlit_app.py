@@ -7,6 +7,8 @@ from pathlib import Path
 
 import streamlit as st
 
+st.set_page_config(page_title="Khasra Map Demo", layout="centered")
+
 
 @st.cache_resource
 def ensure_playwright_browsers():
@@ -39,8 +41,6 @@ def load_locations():
 
 
 def main():
-    st.set_page_config(page_title="Khasra Map Demo", layout="centered")
-
     st.title("Khasra Map Demo")
     st.caption("Select District → Tehsil → Village, then run the automation.")
 
@@ -77,7 +77,7 @@ def main():
             automation_log = StringIO()
             try:
                 with redirect_stdout(automation_log):
-                    lat, lon = khasra_to_latlong(
+                    lat, lon, khasra_details = khasra_to_latlong(
                         district=district,
                         tehsil=tehsil,
                         village=village,
@@ -107,6 +107,31 @@ def main():
             if log_text:
                 with st.expander("Automation log"):
                     st.code(log_text)
+
+        if khasra_no.strip() and khasra_details:
+            st.subheader("Khasra Details")
+            has_any = any(
+                khasra_details.get(k) for k in ("owner_name", "area", "parcel_id")
+            )
+            if has_any:
+                st.markdown(f"**Owner:** {khasra_details.get('owner_name') or '—'}")
+                if khasra_details.get("owner_relation"):
+                    st.markdown(f"**Relation:** {khasra_details.get('owner_relation')}")
+                if khasra_details.get("ownership_type"):
+                    st.markdown(f"**Ownership Type:** {khasra_details.get('ownership_type')}")
+
+                col_a, col_b, col_c = st.columns(3)
+                col_a.markdown(f"**Area / Plot Size**\n\n{khasra_details.get('area') or '—'}")
+                col_b.markdown(f"**Parcel ID**\n\n{khasra_details.get('parcel_id') or '—'}")
+                col_c.markdown(f"**Owner Share**\n\n{khasra_details.get('owner_share') or '—'}")
+            else:
+                st.warning(
+                    "Owner/area/parcel-id capture nahi ho paye — search API response "
+                    "intercept nahi ho saka. Raw data neeche dekh sakte ho."
+                )
+
+            with st.expander("Raw extracted key-value pairs (debug)"):
+                st.json(khasra_details.get("raw_pairs") or {})
 
         if screenshot_path.exists():
             st.subheader("Map screenshot")
